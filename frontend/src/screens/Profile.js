@@ -1,5 +1,13 @@
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  Platform,
+  Alert,
+  StyleSheet,
+} from "react-native";
 import { launchImageLibrary } from "react-native-image-picker";
 import useGlobal from "../core/global";
 import utils from "../core/utils";
@@ -9,90 +17,8 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Api, { authApi, endpoints } from "../core/Api";
 import { append } from "domutils";
-
-function ProfileImage() {
-  const uploadThumbnail = useGlobal((state) => state.uploadThumbnail);
-  const user = useGlobal((state) => state.user);
-  const updateUser = useGlobal((state) => state.updateUser);
-
-  const [avatar, setAvatar] = useState("");
-
-  const login = useGlobal((state) => state.login);
-
-  const [users, setUsers] = useState({
-    avatar: "",
-  });
-
-  const change = (field, value) => {
-    setUsers((current) => {
-      return { ...current, [field]: value };
-    });
-  };
-
-  const picker = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      alert("Permission denied!");
-    } else {
-      const res = await ImagePicker.launchImageLibraryAsync();
-      if (!res.canceled) {
-        change("avatar", res.assets[0]);
-      }
-    }
-  };
-  const changeProfileImage = async () => {
-    await picker();
-    try {
-      let form = new FormData();
-      for (key in user) {
-        if (key === "avatar") {
-          const a = {
-            uri: user[key].uri,
-            name: user[key].fileName,
-            type: user[key].mimeType,
-          };
-          form.append(key, a);
-        } else form.append(key, user[key]);
-      }
-      console.info(a);
-      const url = `${endpoints["users"]}avatar/`;
-      const res = await Api.patch(endpoints["users"], form, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      // updateUser(res.data);
-      console.info("res.data");
-    } catch (error) {
-      console.error(error.response.data);
-      console.error(error.response.status);
-      console.error(error.response.headers);
-    }
-  };
-
-  return (
-    <TouchableOpacity style={{ marginBottom: 20 }} onPress={changeProfileImage}>
-      <Thumbnail url={user.avatar} size={180} />
-      <View
-        style={{
-          position: "absolute",
-          bottom: 0,
-          right: 0,
-          backgroundColor: "#202020",
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: 3,
-          borderColor: "white",
-        }}
-      >
-        <FontAwesomeIcon icon="pencil" size={15} color="#d0d0d0" />
-      </View>
-    </TouchableOpacity>
-  );
-}
+// import * as mime from "react-native-mime-types";
+import mime from "mime";
 
 function ProfileLogout() {
   const logout = useGlobal((state) => state.logout);
@@ -130,6 +56,97 @@ function ProfileLogout() {
 }
 
 function ProfileScreen() {
+  const [users, setUsers] = useState({
+    avatar: "",
+  });
+
+  const updateUser = useGlobal((state) => state.updateUser);
+  function ProfileImage() {
+    const uploadThumbnail = useGlobal((state) => state.uploadThumbnail);
+    const user = useGlobal((state) => state.user);
+
+    const [avatar, setAvatar] = useState("");
+
+    const login = useGlobal((state) => state.login);
+
+    const change = (field, value) => {
+      setUsers((current) => {
+        return { ...current, [field]: value };
+      });
+    };
+
+    const picker = async () => {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        alert("Permission denied!");
+      } else {
+        const res = await ImagePicker.launchImageLibraryAsync();
+        if (!res.canceled) {
+          change("avatar", res.assets[0]);
+        }
+      }
+    };
+
+    return (
+      <TouchableOpacity
+        style={{ marginBottom: 20 }}
+        onPress={() => {
+          picker();
+        }}
+      >
+        <Thumbnail url={user.avatar} size={180} />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            right: 0,
+            backgroundColor: "#202020",
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 3,
+            borderColor: "white",
+          }}
+        >
+          <FontAwesomeIcon icon="pencil" size={15} color="#d0d0d0" />
+        </View>
+      </TouchableOpacity>
+    );
+  }
+  const changeProfileImage = async () => {
+    try {
+      let form = new FormData();
+      for (key in user) {
+        if (key === "avatar") {
+          let a = {
+            uri: users[key].uri,
+            name: users[key].fileName,
+            type: users[key].mimeType,
+          };
+          console.log(a);
+          form.append(key, a);
+        } else form.append(key, users[key]);
+      }
+      const access_token = await AsyncStorage.getItem("token-access");
+      const url = `${endpoints["users"]}avatar/`;
+      const res = await authApi(access_token).patch(url, form, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      console.info(res.data);
+      updateUser(res.data);
+      setUsers({ avatar: "" });
+    } catch (error) {
+      console.error(error);
+      console.error(error.response.data);
+      console.error(error.response.status);
+      console.error(error.response.headers);
+    }
+  };
   const user = useGlobal((state) => state.user);
   return (
     <View
@@ -140,7 +157,6 @@ function ProfileScreen() {
       }}
     >
       <ProfileImage />
-
       <Text
         style={{
           textAlign: "center",
@@ -161,10 +177,47 @@ function ProfileScreen() {
       >
         @{user.username}
       </Text>
-
-      <ProfileLogout />
+      {users.avatar !== "" ? (
+        <TouchableOpacity
+          onPress={changeProfileImage}
+          style={{
+            flexDirection: "row",
+            height: 52,
+            borderRadius: 26,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 26,
+            backgroundColor: "#202020",
+            marginTop: 40,
+          }}
+        >
+          <Text
+            style={{
+              fontWeight: "bold",
+              color: "#d0d0d0",
+            }}
+          >
+            Update Avatar
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <ProfileLogout />
+      )}
     </View>
   );
 }
+
+const Styles = StyleSheet.create({
+  button: {
+    flexDirection: "row",
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 26,
+    backgroundColor: "#202020",
+    marginTop: 40,
+  },
+});
 
 export default ProfileScreen;
